@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>有給管理ツール</title>
+<style>
+  :root{
+    --bg:#f4f6f9; --panel:#fff; --line:#d4dae3; --line2:#e8ecf2;
+    --head:#2f5597; --head2:#4472c4; --accent:#2f5597;
+    --sat:#bcd6f5; --sun:#f5bcbc; --total:#ffe39a; --text:#1f2733;
+    --muted:#6b7686; --danger:#c0392b; --ok:#1e7e44;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Meiryo","Yu Gothic UI","Segoe UI",sans-serif;
+       background:var(--bg);color:var(--text);font-size:14px;}
+  header{background:var(--head);color:#fff;padding:10px 16px;display:flex;
+         align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:30;}
+  header h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.5px;}
+  .year-ctl{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.15);
+            padding:4px 8px;border-radius:6px;}
+  .year-ctl button{background:#fff;color:var(--head);border:none;width:26px;height:26px;
+                   border-radius:5px;font-size:16px;cursor:pointer;font-weight:700;}
+  .year-ctl span{font-size:16px;font-weight:700;min-width:120px;text-align:center;}
+  .spacer{flex:1;}
+  .tools button{background:#fff;color:var(--head);border:none;padding:6px 12px;border-radius:6px;
+                cursor:pointer;font-size:13px;font-weight:600;margin-left:6px;}
+  .tools button:hover{background:#e8eefb;}
+  .tools button.print{background:#ffd966;}
+  nav{background:#fff;border-bottom:1px solid var(--line);padding:6px 12px;display:flex;
+      gap:4px;flex-wrap:wrap;position:sticky;top:48px;z-index:25;}
+  nav button{border:1px solid var(--line);background:#f7f9fc;color:var(--text);padding:7px 16px;
+             border-radius:18px;cursor:pointer;font-size:13px;}
+  nav button.active{background:var(--head2);color:#fff;border-color:var(--head2);font-weight:700;}
+  main{padding:14px;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;
+         overflow:auto;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+  .view-title{font-size:16px;font-weight:700;margin:0 0 12px;color:var(--accent);
+              display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .hint{color:var(--muted);font-size:12px;font-weight:400;}
+
+  /* 入力フォーム */
+  .entry-card{background:#f0f5ff;border:1px solid #c6d6f0;border-radius:10px;padding:16px;
+              display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:12px;font-weight:700;color:var(--accent);}
+  .field select,.field input{padding:9px 10px;border:1px solid var(--line);border-radius:7px;
+                             font-size:15px;font-family:inherit;background:#fff;}
+  .field select{min-width:150px;}
+  .field input[type=date]{min-width:160px;}
+  .field input.hours{width:110px;text-align:right;}
+  .quick{display:flex;gap:5px;margin-top:2px;}
+  .quick button{border:1px solid var(--head2);background:#fff;color:var(--head2);border-radius:6px;
+                padding:5px 9px;font-size:12px;cursor:pointer;font-weight:600;}
+  .quick button:hover{background:var(--head2);color:#fff;}
+  .add-main{background:var(--ok);color:#fff;border:none;padding:11px 26px;border-radius:8px;
+            font-size:15px;font-weight:700;cursor:pointer;align-self:flex-end;}
+  .add-main:hover{filter:brightness(1.08);}
+  .toast{color:var(--ok);font-weight:700;font-size:13px;min-height:18px;margin:-8px 0 8px;}
+
+  table{border-collapse:collapse;white-space:nowrap;}
+  th,td{border:1px solid var(--line);padding:4px 7px;text-align:center;}
+  thead th{background:var(--head2);color:#fff;font-weight:600;}
+  .name-col{position:sticky;left:0;background:#eef2f8;font-weight:700;text-align:left;
+            min-width:96px;z-index:2;}
+  thead .name-col{background:var(--head);z-index:5;}
+  td.sat,th.sat{background:var(--sat);} td.sun,th.sun{background:var(--sun);}
+  td.total,th.total{background:var(--total);font-weight:700;}
+
+  /* 記録リスト */
+  .rec-table{width:100%;}
+  .rec-table td,.rec-table th{text-align:left;}
+  .rec-table td.c,.rec-table th.c{text-align:center;}
+  .rec-table tbody tr:hover{background:#fafcff;}
+  .del{background:#fff;color:var(--danger);border:1px solid var(--danger);
+       border-radius:5px;padding:3px 10px;cursor:pointer;font-size:12px;}
+  .empty{color:var(--muted);padding:20px;text-align:center;}
+
+  /* 月別グリッド */
+  .grid input{width:42px;border:none;background:transparent;text-align:center;font-size:13px;
+              padding:2px 0;font-family:inherit;}
+  .grid input:focus{outline:2px solid var(--head2);background:#fff;border-radius:3px;}
+  .grid td.cell{padding:0;min-width:44px;}
+  .grid td.cell:hover{background:#fffae6;}
+  .dow{font-size:11px;}
+
+  /* スタッフ設定 */
+  .staff-table td,.staff-table th{text-align:left;padding:6px 8px;}
+  .staff-table input[type=text]{width:150px;padding:5px 7px;border:1px solid var(--line);border-radius:5px;font-family:inherit;}
+  .staff-table input[type=number]{width:70px;padding:5px 7px;border:1px solid var(--line);border-radius:5px;font-family:inherit;text-align:right;}
+  .add-btn{margin-top:10px;background:var(--head2);color:#fff;border:none;padding:8px 16px;
+           border-radius:6px;cursor:pointer;font-weight:600;}
+  .move{background:#fff;border:1px solid var(--line);border-radius:4px;cursor:pointer;width:24px;height:22px;}
+
+  /* 集計 */
+  .sum-table td{padding:6px 10px;} .sum-table .name-col{position:static;}
+  .days-cell{font-weight:700;color:var(--accent);}
+  .sum-table tfoot td{background:#eef2f8;font-weight:700;}
+  .legend{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7;}
+  .print-head{display:none;}
+
+  @media print{
+    header,nav,.tools,.no-print,.entry-card,.toast{display:none !important;}
+    body{background:#fff;font-size:11px;}
+    main{padding:0;} .panel{border:none;box-shadow:none;padding:0;}
+    .print-head{display:block;text-align:center;font-size:15px;font-weight:700;margin-bottom:8px;}
+    th,td{border:1px solid #555 !important;}
+    thead th{color:#000;background:#dde6f3 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .name-col{position:static;background:#eef2f8 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    td.sat,th.sat{background:#bcd6f5 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    td.sun,th.sun{background:#f5bcbc !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    td.total,th.total{background:#ffe39a !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    @page{size:A4 landscape;margin:8mm;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>有給管理ツール</h1>
+  <div class="year-ctl no-print">
+    <button id="yearPrev" title="前年度">‹</button>
+    <span id="yearLabel"></span>
+    <button id="yearNext" title="翌年度">›</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="tools">
+    <button class="print" id="btnPrint">🖨 印刷</button>
+    <button id="btnExport">💾 バックアップ</button>
+    <button id="btnImport">📂 読み込み</button>
+    <button id="btnCsv">CSV出力</button>
+    <input type="file" id="fileInput" accept="application/json" style="display:none">
+  </div>
+</header>
+
+<nav id="nav"></nav>
+<main><div class="panel" id="panel"></div></main>
+
+<script>
+"use strict";
+const MONTHS = [4,5,6,7,8,9,10,11,12,1,2,3];
+const DOW = ["日","月","火","水","木","金","土"];
+const DEFAULT_STAFF = [
+  ["礒部早苗",8],["千田昭子",9],["江守美奈",9],["佐藤直美",9],["春山由佳",9],
+  ["渡辺洋子",9],["大橋夏子",9],["清水朋子",9],["清水美保",9],["清水祐香",9],
+  ["阿久津知里",7],["中村万里",9],["村上明子",7],["森陽子",8],["山中千夏",9],
+  ["上田ゆかり",9],["桐ケ谷夏輝",9],["熊澤未来",9],["吉岡由規",8],["足達朋佳",9],
+];
+const DEFAULT_MAX = { summer:16, winter:5, spring:3 };
+
+let state = load();
+let view = "input";
+let lastName = "";   // 連続入力用に名前を保持
+
+/* ---------- 保存・読込 ---------- */
+function storageKey(){ return "yukyu_" + state.year; }
+function load(){
+  const last = localStorage.getItem("yukyu_last_year");
+  return loadYear(last ? parseInt(last,10) : 2026);
+}
+function loadYear(year){
+  const raw = localStorage.getItem("yukyu_" + year);
+  if(raw){ try{ const s=JSON.parse(raw); s.year=year; if(!s.maxLeave) s.maxLeave={...DEFAULT_MAX}; return s; }catch(e){} }
+  let staff, maxLeave={...DEFAULT_MAX};
+  const lastY = localStorage.getItem("yukyu_last_year");
+  if(lastY){ const prev=localStorage.getItem("yukyu_"+lastY);
+    if(prev){ try{ const p=JSON.parse(prev);
+      staff=p.staff.map(s=>({id:s.id,name:s.name,daily:s.daily,sWork:"",wWork:"",spWork:""}));
+      if(p.maxLeave) maxLeave={...p.maxLeave};
+    }catch(e){} } }
+  if(!staff) staff = DEFAULT_STAFF.map(s=>newStaff(s[0],s[1]));
+  return { year, staff, maxLeave, entries:{} };
+}
+function newStaff(name,daily){
+  return { id:"s"+Date.now()+Math.random().toString(36).slice(2,7),
+           name, daily, sWork:"", wWork:"", spWork:"" };
+}
+function save(){
+  localStorage.setItem(storageKey(), JSON.stringify(state));
+  localStorage.setItem("yukyu_last_year", String(state.year));
+}
+
+/* ---------- 計算 ---------- */
+function parseHours(str){
+  if(str==null) return 0; str=String(str).trim(); if(str==="") return 0;
+  let neg=false; if(str[0]==="-"){neg=true;str=str.slice(1);}
+  let v; if(str.includes(":")){const[h,m]=str.split(":"); v=(parseFloat(h)||0)+(parseFloat(m)||0)/60;} else v=parseFloat(str);
+  if(isNaN(v)) return 0; return neg?-v:v;
+}
+function daysInMonth(year,month){ const y=month>=4?year:year+1; return new Date(y,month,0).getDate(); }
+function actualYear(month){ return month>=4?state.year:state.year+1; }
+function fiscalYearOf(y,m){ return m>=4 ? y : y-1; }  // m:1-12
+function dateKey(month,day){ return actualYear(month)+"-"+String(month).padStart(2,"0")+"-"+String(day).padStart(2,"0"); }
+function getHours(id,month,day){ const e=state.entries[id]; return e?e[dateKey(month,day)]:undefined; }
+function setHours(id,month,day,raw){
+  if(!state.entries[id]) state.entries[id]={};
+  const k=dateKey(month,day);
+  if(raw==null||String(raw).trim()===""){ delete state.entries[id][k]; }
+  else state.entries[id][k]=String(raw).trim();
+}
+function monthTotal(id,month){ let t=0,n=daysInMonth(state.year,month);
+  for(let d=1;d<=n;d++){const v=getHours(id,month,d); if(v!==undefined) t+=parseHours(v);} return t; }
+function yearTotal(id){ let t=0; for(const m of MONTHS) t+=monthTotal(id,m); return t; }
+function toDays(total,daily){
+  if(!daily||daily<=0) return fmtNum(total)+"時間";
+  const days=Math.trunc(total/daily); let rem=Math.round((total-days*daily)*100)/100;
+  return days+"日＋"+rem+"時間";
+}
+function fmtNum(n){ return Math.round(n*100)/100; }
+
+/* ---------- ナビ ---------- */
+const navEl=document.getElementById("nav"), panel=document.getElementById("panel");
+function renderNav(){
+  const tabs=[["input","✏ 入力"],["summary","📊 集計"],["grid","📅 月別表"],["staff","⚙ スタッフ設定"]];
+  navEl.innerHTML=tabs.map(t=>`<button class="${view===t[0]?'active':''}" data-v="${t[0]}">${t[1]}</button>`).join("");
+  navEl.querySelectorAll("button").forEach(b=>b.onclick=()=>{view=b.dataset.v;render();});
+  document.getElementById("yearLabel").textContent=state.year+"年度";
+}
+function render(){
+  renderNav();
+  if(view==="input") renderInput();
+  else if(view==="summary") renderSummary();
+  else if(view==="grid") renderGrid();
+  else if(view==="staff") renderStaff();
+  save();
+}
+
+/* ---------- ✏ 入力（選択して登録） ---------- */
+let gridMonth = MONTHS[0];
+function renderInput(){
+  const today=new Date();
+  let defDate = inRange(today) ? iso(today) : `${state.year}-04-01`;
+  const opts = state.staff.map(s=>`<option value="${s.id}" ${s.id===lastName?'selected':''}>${escapeHtml(s.name)}</option>`).join("");
+  let h = `
+    <div class="view-title">有給の登録 <span class="hint">　名前・日付・時間を選んで「追加」。下の一覧と集計に自動反映されます。</span></div>
+    <div class="entry-card">
+      <div class="field"><label>名前</label>
+        <select id="eName"><option value="">― 選択 ―</option>${opts}</select></div>
+      <div class="field"><label>日付</label>
+        <input type="date" id="eDate" value="${defDate}"></div>
+      <div class="field"><label>取得時間（時間）</label>
+        <input type="number" class="hours" id="eHours" step="0.5" min="0" placeholder="例: 3">
+        <div class="quick">
+          <button data-q="full">全休</button>
+          <button data-q="half">半休</button>
+          <button data-q="1">1h</button><button data-q="2">2h</button><button data-q="3">3h</button>
+        </div></div>
+      <button class="add-main" id="eAdd">＋ 追加</button>
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <div class="view-title" style="font-size:14px;margin-top:10px;">長期休暇の出勤数 <span class="hint">　名前と期間を選び、出勤した日数を登録（取得日数＝最大−出勤数を自動計算）。</span></div>
+    <div class="entry-card" style="background:#fff7e8;border-color:#f0dcae;">
+      <div class="field"><label>名前</label>
+        <select id="lName"><option value="">― 選択 ―</option>${opts}</select></div>
+      <div class="field"><label>期間</label>
+        <select id="lTerm">
+          <option value="sWork">夏期（最大${state.maxLeave.summer}日）</option>
+          <option value="wWork">冬期（最大${state.maxLeave.winter}日）</option>
+          <option value="spWork">春期（最大${state.maxLeave.spring}日）</option>
+        </select></div>
+      <div class="field"><label>出勤数（日）</label>
+        <input type="number" class="hours" id="lWork" step="0.5" min="0" placeholder="例: 4"></div>
+      <button class="add-main" id="lAdd" style="background:#c8860a;">登録</button>
+      <div class="field" style="justify-content:flex-end;"><span id="lResult" class="hint" style="font-weight:700;color:var(--accent);"></span></div>
+    </div>
+    <div class="toast" id="toastL"></div>`;
+
+  // 記録一覧（当年度）
+  const recs=collectRecords();
+  h += `<div class="view-title" style="font-size:14px;">登録一覧 <span class="hint">（${state.year}年度・${recs.length}件）</span></div>`;
+  if(recs.length===0){ h+=`<div class="empty">まだ登録がありません。上のフォームから追加してください。</div>`; }
+  else{
+    h += `<table class="rec-table"><thead><tr>
+      <th>日付</th><th>曜日</th><th>名前</th><th class="c">取得時間</th><th class="c">換算</th><th class="c">操作</th></tr></thead><tbody>`;
+    for(const r of recs){
+      const st=state.staff.find(s=>s.id===r.id);
+      h += `<tr>
+        <td>${r.y}/${r.m}/${r.d}</td>
+        <td class="c">${DOW[r.dow]}</td>
+        <td>${escapeHtml(r.name)}</td>
+        <td class="c">${fmtNum(r.hours)} 時間</td>
+        <td class="c">${st?toDays(r.hours,st.daily):"-"}</td>
+        <td class="c"><button class="del" data-id="${r.id}" data-m="${r.m}" data-d="${r.d}">削除</button></td></tr>`;
+    }
+    h += `</tbody></table>`;
+  }
+  panel.innerHTML=h;
+
+  const nameEl=document.getElementById("eName"), dateEl=document.getElementById("eDate"), hoursEl=document.getElementById("eHours");
+  // クイックボタン
+  panel.querySelectorAll(".quick button").forEach(b=>b.onclick=()=>{
+    const q=b.dataset.q;
+    if(q==="full"||q==="half"){
+      const s=state.staff.find(x=>x.id===nameEl.value);
+      if(!s){ flash("先に名前を選んでください", true); nameEl.focus(); return; }
+      hoursEl.value = q==="full" ? s.daily : Math.round(s.daily/2*100)/100;
+    } else hoursEl.value=q;
+    hoursEl.focus();
+  });
+  document.getElementById("eAdd").onclick=addEntry;
+  hoursEl.addEventListener("keydown",e=>{ if(e.key==="Enter") addEntry(); });
+  panel.querySelectorAll(".rec-table .del").forEach(b=>b.onclick=()=>{
+    setHours(b.dataset.id, +b.dataset.m, +b.dataset.d, "");
+    save(); renderInput();
+  });
+
+  // 長期休暇 出勤数の登録
+  const lNameEl=document.getElementById("lName"), lTermEl=document.getElementById("lTerm"),
+        lWorkEl=document.getElementById("lWork"), lResEl=document.getElementById("lResult");
+  const termMax={sWork:state.maxLeave.summer, wWork:state.maxLeave.winter, spWork:state.maxLeave.spring};
+  const termName={sWork:"夏期", wWork:"冬期", spWork:"春期"};
+  function showCurrent(){
+    const s=state.staff.find(x=>x.id===lNameEl.value);
+    if(!s){ lResEl.textContent=""; return; }
+    const f=lTermEl.value, cur=s[f];
+    if(cur===""||cur==null){ lWorkEl.value=""; lResEl.textContent="（未登録）"; return; }
+    lWorkEl.value=cur;
+    lResEl.textContent=`現在: 出勤${fmtNum(cur)}日 → 取得${fmtNum(leaveTaken(cur,termMax[f]))}日`;
+  }
+  lNameEl.onchange=showCurrent; lTermEl.onchange=showCurrent;
+  function addLeave(){
+    const id=lNameEl.value, f=lTermEl.value;
+    if(!id){ flashL("名前を選んでください", true); return; }
+    if(lWorkEl.value.trim()===""){ flashL("出勤数を入力してください", true); return; }
+    const work=parseFloat(lWorkEl.value)||0;
+    const s=state.staff.find(x=>x.id===id);
+    s[f]=work; save();
+    const taken=leaveTaken(work, termMax[f]);
+    flashL(`✓ ${s.name} ${termName[f]} 出勤${fmtNum(work)}日 → 取得${fmtNum(taken)}日 を登録しました`);
+    lResEl.textContent=`現在: 出勤${fmtNum(work)}日 → 取得${fmtNum(taken)}日`;
+  }
+  document.getElementById("lAdd").onclick=addLeave;
+  lWorkEl.addEventListener("keydown",e=>{ if(e.key==="Enter") addLeave(); });
+
+  function addEntry(){
+    const id=nameEl.value, dval=dateEl.value, hrs=parseHours(hoursEl.value);
+    if(!id){ flash("名前を選んでください", true); return; }
+    if(!dval){ flash("日付を選んでください", true); return; }
+    if(!hrs){ flash("取得時間を入力してください", true); return; }
+    const [yy,mm,dd]=dval.split("-").map(Number);
+    const fy=fiscalYearOf(yy,mm);
+    if(fy!==state.year){ save(); state=loadYear(fy); }
+    const exist=getHours(id, mm, dd);
+    if(exist!==undefined && !confirm(`その日には既に ${fmtNum(parseHours(exist))}時間 が登録されています。\n上書きしますか？`)) return;
+    setHours(id, mm, dd, hoursEl.value);
+    lastName=id; save();
+    const nm=state.staff.find(s=>s.id===id);
+    renderInput();
+    flash(`✓ ${nm?nm.name:""} ${yy}/${mm}/${dd} に ${fmtNum(hrs)}時間 を登録しました`);
+    // 連続入力しやすいよう名前・日付は保持、時間だけクリア
+    document.getElementById("eName").value=id;
+    document.getElementById("eDate").value=dval;
+    document.getElementById("eHours").focus();
+  }
+}
+function flash(msg, isErr){
+  const t=document.getElementById("toast"); if(!t) return;
+  t.textContent=msg; t.style.color=isErr?"#c0392b":"#1e7e44";
+  clearTimeout(flash._t); flash._t=setTimeout(()=>{t.textContent="";},4000);
+}
+function flashL(msg, isErr){
+  const t=document.getElementById("toastL"); if(!t) return;
+  t.textContent=msg; t.style.color=isErr?"#c0392b":"#1e7e44";
+  clearTimeout(flashL._t); flashL._t=setTimeout(()=>{t.textContent="";},4000);
+}
+function inRange(d){ const fy=fiscalYearOf(d.getFullYear(),d.getMonth()+1); return fy===state.year; }
+function iso(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function collectRecords(){
+  const out=[];
+  for(const s of state.staff){
+    const e=state.entries[s.id]; if(!e) continue;
+    for(const k in e){
+      const [y,m,d]=k.split("-").map(Number);
+      const dow=new Date(y,m-1,d).getDay();
+      out.push({id:s.id,name:s.name,y,m,d,dow,hours:parseHours(e[k]),key:k});
+    }
+  }
+  out.sort((a,b)=> a.key<b.key?1:a.key>b.key?-1:0); // 新しい順
+  return out;
+}
+
+/* 長期休暇の取得日数 = 最大 − 出勤数（出勤が空欄なら0） */
+function leaveTaken(work,max){
+  if(work===""||work==null) return 0;
+  return (parseFloat(max)||0) - (parseFloat(work)||0);
+}
+function renderSummary(){
+  const mx=state.maxLeave;
+  let h=`<div class="print-head">${state.year}年度　有給取得 集計表</div>`;
+  h+=`<div class="view-title no-print">集計 <span class="hint">　有給は「合計時間 ÷ 1日の勤務時間」、長期休暇は「最大日数 − 出勤数」で自動計算。</span></div>`;
+
+  // 年度ごとの最大取得日数の設定バー
+  h+=`<div class="no-print" style="background:#f0f5ff;border:1px solid #c6d6f0;border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;gap:22px;align-items:center;flex-wrap:wrap;">
+      <strong style="color:var(--accent);font-size:13px;">長期休暇の最大取得日数（${state.year}年度）</strong>
+      <label>夏期 <input class="mx" data-k="summer" type="number" step="0.5" min="0" value="${mx.summer}" style="width:60px;padding:5px;border:1px solid var(--line);border-radius:5px;text-align:right;"> 日</label>
+      <label>冬期 <input class="mx" data-k="winter" type="number" step="0.5" min="0" value="${mx.winter}" style="width:60px;padding:5px;border:1px solid var(--line);border-radius:5px;text-align:right;"> 日</label>
+      <label>春期 <input class="mx" data-k="spring" type="number" step="0.5" min="0" value="${mx.spring}" style="width:60px;padding:5px;border:1px solid var(--line);border-radius:5px;text-align:right;"> 日</label>
+      </div>`;
+
+  h+=`<table class="sum-table"><thead>
+      <tr>
+        <th class="name-col" rowspan="2">名前</th>
+        <th colspan="3">通常有給</th>
+        <th colspan="2">夏期休暇<br>(最大${mx.summer}日)</th>
+        <th colspan="2">冬期休暇<br>(最大${mx.winter}日)</th>
+        <th colspan="2">春期休暇<br>(最大${mx.spring}日)</th>
+        <th rowspan="2">長期休暇<br>取得計</th>
+        <th rowspan="2" style="background:var(--head);">総合計<br>(通常+長期)</th>
+      </tr>
+      <tr>
+        <th>合計取得時間</th><th>1日の勤務時間</th><th>有給取得日数</th>
+        <th>出勤数</th><th>取得日数</th>
+        <th>出勤数</th><th>取得日数</th>
+        <th>出勤数</th><th>取得日数</th>
+      </tr></thead><tbody>`;
+  let sh=0, sDays=0, sRem=0, tSummer=0,tWinter=0,tSpring=0,tLong=0;
+  for(const s of state.staff){
+    const th=yearTotal(s.id); sh+=th;
+    if(s.daily>0){ const d=Math.trunc(th/s.daily); sDays+=d; sRem+=th-d*s.daily; } else sRem+=th;
+    const ts=leaveTaken(s.sWork,mx.summer), tw=leaveTaken(s.wWork,mx.winter), tp=leaveTaken(s.spWork,mx.spring);
+    const longSum=ts+tw+tp;
+    tSummer+=ts; tWinter+=tw; tSpring+=tp; tLong+=longSum;
+    // 総合計＝通常有給(日数)＋長期休暇(日数)、余り時間はそのまま
+    const nDays=s.daily>0?Math.trunc(th/s.daily):0;
+    const nRem=s.daily>0?th-nDays*s.daily:th;
+    const grand=`${fmtNum(nDays+longSum)}日＋${fmtNum(nRem)}時間`;
+    h+=`<tr><td class="name-col">${escapeHtml(s.name)}</td>
+      <td>${fmtNum(th)} 時間</td><td>${s.daily} 時間</td><td class="days-cell">${toDays(th,s.daily)}</td>
+      <td><input class="wk" data-s="${s.id}" data-f="sWork" type="number" step="0.5" min="0" value="${s.sWork??""}" style="width:54px"></td>
+      <td class="days-cell">${fmtNum(ts)} 日</td>
+      <td><input class="wk" data-s="${s.id}" data-f="wWork" type="number" step="0.5" min="0" value="${s.wWork??""}" style="width:54px"></td>
+      <td class="days-cell">${fmtNum(tw)} 日</td>
+      <td><input class="wk" data-s="${s.id}" data-f="spWork" type="number" step="0.5" min="0" value="${s.spWork??""}" style="width:54px"></td>
+      <td class="days-cell">${fmtNum(tp)} 日</td>
+      <td class="days-cell">${fmtNum(longSum)} 日</td>
+      <td class="days-cell" style="background:#fff2cf;">${grand}</td></tr>`;
+  }
+  h+=`</tbody></table>`;
+  h+=`<div class="legend">・「有給取得日数」＝合計有給取得時間 ÷ 1日の勤務時間 を「○日＋余り時間」で表示。<br>
+      ・長期休暇の「取得日数」＝最大取得日数 − 出勤数（出勤数が空欄のときは0日）。最大日数は上の欄で年度ごとに変更できます。<br>
+      ・「1日の勤務時間」は［⚙ スタッフ設定］で各自に合わせて変更できます。</div>`;
+  panel.innerHTML=h;
+  panel.querySelectorAll(".mx").forEach(inp=>inp.addEventListener("change",()=>{
+    state.maxLeave[inp.dataset.k]=parseFloat(inp.value)||0; save(); renderSummary();
+  }));
+  panel.querySelectorAll(".wk").forEach(inp=>inp.addEventListener("change",()=>{
+    const s=state.staff.find(x=>x.id===inp.dataset.s);
+    s[inp.dataset.f]=inp.value.trim()===""?"":parseFloat(inp.value)||0; save(); renderSummary();
+  }));
+}
+
+/* ---------- 📅 月別表 ---------- */
+function renderGrid(){
+  const month=gridMonth, n=daysInMonth(state.year,month), y=actualYear(month);
+  let h=`<div class="print-head">${state.year}年度　有給管理表（${month}月）</div>`;
+  h+=`<div class="view-title no-print">月別表 　`;
+  h+=`<select id="gMonth" class="no-print" style="padding:5px 8px;border-radius:6px;border:1px solid var(--line);">`+
+     MONTHS.map(m=>`<option value="${m}" ${m===month?'selected':''}>${m}月</option>`).join("")+`</select>`;
+  h+=` <span class="hint">　セルに直接入力もできます。入力タブの登録もここに反映されます。</span></div>`;
+  h+=`<table class="grid"><thead><tr><th class="name-col">名前 \\ 日</th>`;
+  for(let d=1;d<=n;d++){ const dw=new Date(y,month-1,d).getDay(); const c=dw===0?"sun":dw===6?"sat":"";
+    h+=`<th class="${c}">${d}<br><span class="dow">${DOW[dw]}</span></th>`; }
+  h+=`<th class="total">合計<br><span class="dow">時間</span></th></tr></thead><tbody>`;
+  for(const s of state.staff){
+    h+=`<tr><td class="name-col">${escapeHtml(s.name)}</td>`;
+    for(let d=1;d<=n;d++){ const dw=new Date(y,month-1,d).getDay(); const c=dw===0?"sun":dw===6?"sat":"";
+      const v=getHours(s.id,month,d);
+      h+=`<td class="cell ${c}"><input data-s="${s.id}" data-d="${d}" value="${v!==undefined?escapeAttr(v):""}"></td>`; }
+    h+=`<td class="total" id="mt-${s.id}">${fmtNum(monthTotal(s.id,month))}</td></tr>`;
+  }
+  h+=`</tbody></table>`;
+  panel.innerHTML=h;
+  document.getElementById("gMonth").onchange=e=>{ gridMonth=+e.target.value; renderGrid(); };
+  panel.querySelectorAll(".grid input").forEach(inp=>{
+    inp.addEventListener("change",()=>{ setHours(inp.dataset.s,month,+inp.dataset.d,inp.value);
+      document.getElementById("mt-"+inp.dataset.s).textContent=fmtNum(monthTotal(inp.dataset.s,month)); save(); });
+    inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();inp.blur();inp.dispatchEvent(new Event("change"));} });
+  });
+}
+
+/* ---------- ⚙ スタッフ設定 ---------- */
+function renderStaff(){
+  let h=`<div class="view-title">スタッフ設定 <span class="hint">　名前・1日の勤務時間を登録。並び順は↑↓で変更。</span></div>`;
+  h+=`<table class="staff-table"><thead><tr><th>並び</th><th>名前</th><th>1日の勤務時間(時間)</th><th>操作</th></tr></thead><tbody>`;
+  state.staff.forEach((s,i)=>{ h+=`<tr>
+    <td><button class="move" data-up="${i}">↑</button> <button class="move" data-down="${i}">↓</button></td>
+    <td><input type="text" data-id="${s.id}" data-f="name" value="${escapeAttr(s.name)}"></td>
+    <td><input type="number" data-id="${s.id}" data-f="daily" value="${s.daily}" step="0.5" min="0"> 時間</td>
+    <td><button class="del" data-del="${s.id}">削除</button></td></tr>`; });
+  h+=`</tbody></table><button class="add-btn" id="addStaff">＋ スタッフを追加</button>`;
+  panel.innerHTML=h;
+  panel.querySelectorAll("input").forEach(inp=>inp.addEventListener("change",()=>{
+    const s=state.staff.find(x=>x.id===inp.dataset.id);
+    if(inp.dataset.f==="name") s.name=inp.value; else s.daily=parseFloat(inp.value)||0; save();
+  }));
+  panel.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
+    const s=state.staff.find(x=>x.id===b.dataset.del);
+    if(confirm(`「${s.name}」を削除しますか？\n（このスタッフの登録データも消えます）`)){
+      state.staff=state.staff.filter(x=>x.id!==b.dataset.del); delete state.entries[b.dataset.del]; save(); renderStaff(); }
+  });
+  panel.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>moveStaff(+b.dataset.up,-1));
+  panel.querySelectorAll("[data-down]").forEach(b=>b.onclick=()=>moveStaff(+b.dataset.down,1));
+  document.getElementById("addStaff").onclick=()=>{
+    const name=prompt("スタッフ名を入力してください"); if(name===null) return;
+    const d=prompt("1日の勤務時間（時間）", "9"); if(d===null) return;
+    state.staff.push(newStaff(name.trim()||"（無名）", parseFloat(d)||9)); save(); renderStaff();
+  };
+}
+function moveStaff(i,dir){ const j=i+dir; if(j<0||j>=state.staff.length) return;
+  [state.staff[i],state.staff[j]]=[state.staff[j],state.staff[i]]; save(); renderStaff(); }
+
+/* ---------- ツールバー ---------- */
+document.getElementById("btnPrint").onclick=()=>window.print();
+document.getElementById("yearPrev").onclick=()=>changeYear(-1);
+document.getElementById("yearNext").onclick=()=>changeYear(1);
+function changeYear(d){ save(); state=loadYear(state.year+d); render(); }
+document.getElementById("btnExport").onclick=()=>{
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`有給管理_${state.year}年度.json`; a.click();
+};
+document.getElementById("btnImport").onclick=()=>document.getElementById("fileInput").click();
+document.getElementById("fileInput").onchange=e=>{
+  const f=e.target.files[0]; if(!f) return; const r=new FileReader();
+  r.onload=()=>{ try{ const s=JSON.parse(r.result); if(!s.staff||!s.year){alert("ファイル形式が正しくありません。");return;}
+    state=s; save(); render(); alert(`${s.year}年度のデータを読み込みました。`);
+  }catch(err){ alert("読み込みに失敗しました: "+err.message); } };
+  r.readAsText(f); e.target.value="";
+};
+document.getElementById("btnCsv").onclick=()=>{
+  const mx=state.maxLeave;
+  let rows=[["名前","合計有給取得時間","1日の勤務時間","有給取得日数",
+    "夏期出勤数",`夏期取得日数(最大${mx.summer})`,"冬期出勤数",`冬期取得日数(最大${mx.winter})`,
+    "春期出勤数",`春期取得日数(最大${mx.spring})`,"長期休暇取得計"]];
+  for(const s of state.staff){ const th=yearTotal(s.id);
+    const ts=leaveTaken(s.sWork,mx.summer),tw=leaveTaken(s.wWork,mx.winter),tp=leaveTaken(s.spWork,mx.spring);
+    rows.push([s.name,fmtNum(th),s.daily,toDays(th,s.daily),
+      s.sWork??"",fmtNum(ts),s.wWork??"",fmtNum(tw),s.spWork??"",fmtNum(tp),fmtNum(ts+tw+tp)]); }
+  const csv="﻿"+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\r\n");
+  const blob=new Blob([csv],{type:"text/csv"}); const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=`有給管理_${state.year}年度_集計.csv`; a.click();
+};
+
+/* ---------- util ---------- */
+function escapeHtml(s){ return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function escapeAttr(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+render();
+</script>
+</body>
+</html>
