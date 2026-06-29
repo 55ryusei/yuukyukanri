@@ -8,7 +8,8 @@
   :root{
     --bg:#f4f6f9; --panel:#fff; --line:#d4dae3; --line2:#e8ecf2;
     --head:#2f5597; --head2:#4472c4; --accent:#2f5597;
-    --sat:#bcd6f5; --sun:#f5bcbc; --total:#ffe39a; --text:#1f2733;
+    --sat:#e9f1fb; --sun:#fcecec; --total:#fff4d6; --text:#1f2733;
+    --satHd:#6f9fd8; --sunHd:#dd8a8a; --totalHd:#e6b54e;
     --muted:#6b7686; --danger:#c0392b; --ok:#1e7e44;
   }
   *{box-sizing:border-box;}
@@ -64,8 +65,10 @@
   .name-col{position:sticky;left:0;background:#eef2f8;font-weight:700;text-align:left;
             min-width:96px;z-index:2;}
   thead .name-col{background:var(--head);z-index:5;}
-  td.sat,th.sat{background:var(--sat);} td.sun,th.sun{background:var(--sun);}
-  td.total,th.total{background:var(--total);font-weight:700;}
+  td.sat{background:var(--sat);} td.sun{background:var(--sun);}
+  thead th.sat{background:var(--satHd);color:#fff;} thead th.sun{background:var(--sunHd);color:#fff;}
+  td.total{background:var(--total);font-weight:700;color:#7a5c00;}
+  thead th.total{background:var(--totalHd);color:#4a3800;}
 
   /* 記録リスト */
   .rec-table{width:100%;}
@@ -75,6 +78,16 @@
   .del{background:#fff;color:var(--danger);border:1px solid var(--danger);
        border-radius:5px;padding:3px 10px;cursor:pointer;font-size:12px;}
   .empty{color:var(--muted);padding:20px;text-align:center;}
+  .rec-filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;
+              background:#f5f7fb;border:1px solid var(--line);border-radius:8px;padding:8px 10px;}
+  .rec-filter input,.rec-filter select{padding:7px 9px;border:1px solid var(--line);border-radius:6px;
+              font-size:13px;font-family:inherit;background:#fff;}
+  .rec-filter input[type=search]{min-width:170px;}
+  .rec-filter .fclear{background:#fff;border:1px solid var(--line);color:var(--muted);
+              border-radius:6px;padding:7px 12px;cursor:pointer;font-size:12px;}
+  .rec-filter .fclear:hover{background:#eef1f6;}
+  tr.month-sep td{background:#dde6f3;font-weight:700;text-align:left;color:var(--accent);padding:4px 8px;}
+  .rec-table td.sat{background:var(--sat);} .rec-table td.sun{background:var(--sun);}
 
   /* 月別グリッド */
   .grid input{width:42px;border:none;background:transparent;text-align:center;font-size:13px;
@@ -107,9 +120,12 @@
     th,td{border:1px solid #555 !important;}
     thead th{color:#000;background:#dde6f3 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     .name-col{position:static;background:#eef2f8 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    td.sat,th.sat{background:#bcd6f5 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    td.sun,th.sun{background:#f5bcbc !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    td.total,th.total{background:#ffe39a !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    td.sat{background:#e9f1fb !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    td.sun{background:#fcecec !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    thead th.sat{background:#6f9fd8 !important;color:#fff !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    thead th.sun{background:#dd8a8a !important;color:#fff !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    td.total{background:#fff4d6 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    thead th.total{background:#e6b54e !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     @page{size:A4 landscape;margin:8mm;}
   }
 </style>
@@ -122,12 +138,15 @@
     <span id="yearLabel"></span>
     <button id="yearNext" title="翌年度">›</button>
   </div>
+  <span id="fileStatus" class="no-print" style="font-size:12px;font-weight:600;opacity:.95;"></span>
   <div class="spacer"></div>
   <div class="tools">
     <button class="print" id="btnPrint">🖨 印刷</button>
-    <button id="btnExport">💾 バックアップ</button>
-    <button id="btnImport">📂 読み込み</button>
+    <button id="btnSaveFile">💾 ファイルに保存</button>
+    <button id="btnOpenFile">📂 ファイルを開く</button>
     <button id="btnCsv">CSV出力</button>
+    <button id="btnExport" title="ダウンロードでバックアップ">⬇</button>
+    <button id="btnImport" title="アップロードで読み込み">⬆</button>
     <input type="file" id="fileInput" accept="application/json" style="display:none">
   </div>
 </header>
@@ -150,6 +169,8 @@ const DEFAULT_MAX = { summer:16, winter:5, spring:3 };
 let state = load();
 let view = "input";
 let lastName = "";   // 連続入力用に名前を保持
+let recSearch="", recName="", recMonth="", recSort="date_desc";  // 一覧の検索・絞り込み状態
+const REC_STEP=200; let recShown=REC_STEP;  // 一覧の表示上限（重さ対策）
 
 /* ---------- 保存・読込 ---------- */
 function storageKey(){ return "yukyu_" + state.year; }
@@ -177,6 +198,7 @@ function newStaff(name,daily){
 function save(){
   localStorage.setItem(storageKey(), JSON.stringify(state));
   localStorage.setItem("yukyu_last_year", String(state.year));
+  scheduleFileWrite();   // ファイル連携時は自動でファイルにも保存
 }
 
 /* ---------- 計算 ---------- */
@@ -206,6 +228,8 @@ function toDays(total,daily){
   return days+"日＋"+rem+"時間";
 }
 function fmtNum(n){ return Math.round(n*100)/100; }
+function hhmm(hours){ const sign=hours<0?"-":""; const mins=Math.round(Math.abs(hours)*60);
+  return sign+Math.floor(mins/60)+":"+String(mins%60).padStart(2,"0"); }
 
 /* ---------- ナビ ---------- */
 const navEl=document.getElementById("nav"), panel=document.getElementById("panel");
@@ -265,26 +289,24 @@ function renderInput(){
     </div>
     <div class="toast" id="toastL"></div>`;
 
-  // 記録一覧（当年度）
-  const recs=collectRecords();
-  h += `<div class="view-title" style="font-size:14px;">登録一覧 <span class="hint">（${state.year}年度・${recs.length}件）</span></div>`;
-  if(recs.length===0){ h+=`<div class="empty">まだ登録がありません。上のフォームから追加してください。</div>`; }
-  else{
-    h += `<table class="rec-table"><thead><tr>
-      <th>日付</th><th>曜日</th><th>名前</th><th class="c">取得時間</th><th class="c">換算</th><th class="c">操作</th></tr></thead><tbody>`;
-    for(const r of recs){
-      const st=state.staff.find(s=>s.id===r.id);
-      h += `<tr>
-        <td>${r.y}/${r.m}/${r.d}</td>
-        <td class="c">${DOW[r.dow]}</td>
-        <td>${escapeHtml(r.name)}</td>
-        <td class="c">${fmtNum(r.hours)} 時間</td>
-        <td class="c">${st?toDays(r.hours,st.daily):"-"}</td>
-        <td class="c"><button class="del" data-id="${r.id}" data-m="${r.m}" data-d="${r.d}">削除</button></td></tr>`;
-    }
-    h += `</tbody></table>`;
-  }
+  // 登録一覧（検索・絞り込み・並び替え付き）
+  const nameOpts = state.staff.map(s=>`<option value="${s.id}" ${s.id===recName?'selected':''}>${escapeHtml(s.name)}</option>`).join("");
+  const monthOpts = MONTHS.map(m=>`<option value="${m}" ${String(m)===recMonth?'selected':''}>${m}月</option>`).join("");
+  h += `<div class="view-title" style="font-size:14px;margin-top:6px;">登録一覧 <span class="hint" id="recCount"></span></div>
+    <div class="rec-filter no-print">
+      <input type="search" id="fSearch" placeholder="🔍 名前で検索" value="${escapeAttr(recSearch)}">
+      <select id="fName"><option value="">全員</option>${nameOpts}</select>
+      <select id="fMonth"><option value="">全月</option>${monthOpts}</select>
+      <select id="fSort">
+        <option value="date_desc">日付が新しい順</option>
+        <option value="date_asc">日付が古い順</option>
+        <option value="name">名前順</option>
+      </select>
+      <button id="fClear" class="fclear">条件クリア</button>
+    </div>
+    <div id="recArea"></div>`;
   panel.innerHTML=h;
+  document.getElementById("fSort").value=recSort;
 
   const nameEl=document.getElementById("eName"), dateEl=document.getElementById("eDate"), hoursEl=document.getElementById("eHours");
   // クイックボタン
@@ -299,10 +321,64 @@ function renderInput(){
   });
   document.getElementById("eAdd").onclick=addEntry;
   hoursEl.addEventListener("keydown",e=>{ if(e.key==="Enter") addEntry(); });
-  panel.querySelectorAll(".rec-table .del").forEach(b=>b.onclick=()=>{
-    setHours(b.dataset.id, +b.dataset.m, +b.dataset.d, "");
-    save(); renderInput();
+
+  // 一覧の検索・絞り込み・並び替え
+  const fSearch=document.getElementById("fSearch"), fName=document.getElementById("fName"),
+        fMonth=document.getElementById("fMonth"), fSort=document.getElementById("fSort");
+  const reset=fn=>()=>{ recShown=REC_STEP; fn(); updateRecList(); };
+  fSearch.addEventListener("input", reset(()=>recSearch=fSearch.value));
+  fName.addEventListener("change", reset(()=>recName=fName.value));
+  fMonth.addEventListener("change", reset(()=>recMonth=fMonth.value));
+  fSort.addEventListener("change", reset(()=>recSort=fSort.value));
+  document.getElementById("fClear").onclick=reset(()=>{
+    recSearch=recName=recMonth=""; recSort="date_desc";
+    fSearch.value=""; fName.value=""; fMonth.value=""; fSort.value="date_desc";
   });
+  recShown=REC_STEP; updateRecList();
+
+  function updateRecList(){
+    const all=collectRecords();
+    let recs=all;
+    if(recName) recs=recs.filter(r=>r.id===recName);
+    if(recMonth) recs=recs.filter(r=>String(r.m)===recMonth);
+    if(recSearch.trim()){ const q=recSearch.trim(); recs=recs.filter(r=>r.name.includes(q)); }
+    if(recSort==="date_asc") recs.sort((a,b)=>a.key<b.key?-1:a.key>b.key?1:0);
+    else if(recSort==="name"){ const ord={}; state.staff.forEach((s,i)=>ord[s.id]=i);
+      recs.sort((a,b)=> ord[a.id]-ord[b.id] || (a.key<b.key?-1:1)); }
+    // date_desc は collectRecords が既に新しい順
+    const matched=recs.length;
+    const shown=recs.slice(0, recShown);
+    document.getElementById("recCount").textContent=`（${state.year}年度・全${all.length}件中 ${matched}件該当${matched>shown.length?` / ${shown.length}件表示中`:""}）`;
+    const area=document.getElementById("recArea");
+    if(matched===0){ area.innerHTML=`<div class="empty">該当する登録がありません。</div>`; return; }
+    let t=`<table class="rec-table"><thead><tr>
+      <th>日付</th><th>曜日</th><th>名前</th><th class="c">取得時間</th><th class="c">換算</th><th class="c">操作</th></tr></thead><tbody>`;
+    let prevMonth=null;
+    for(const r of shown){
+      const st=state.staff.find(s=>s.id===r.id);
+      const wknd=r.dow===0?"sun":r.dow===6?"sat":"";
+      if(recSort!=="name" && r.m!==prevMonth){ prevMonth=r.m;
+        t+=`<tr class="month-sep"><td colspan="6">${r.m}月</td></tr>`; }
+      t+=`<tr>
+        <td>${r.y}/${r.m}/${r.d}</td>
+        <td class="c ${wknd}">${DOW[r.dow]}</td>
+        <td>${escapeHtml(r.name)}</td>
+        <td class="c">${fmtNum(r.hours)} 時間</td>
+        <td class="c">${st?toDays(r.hours,st.daily):"-"}</td>
+        <td class="c"><button class="del" data-id="${r.id}" data-m="${r.m}" data-d="${r.d}">削除</button></td></tr>`;
+    }
+    t+=`</tbody></table>`;
+    if(matched>shown.length){ t+=`<div style="text-align:center;margin:10px 0;">
+      <button id="recMore" class="add-btn" style="background:#fff;color:var(--head2);border:1px solid var(--head2);">
+        もっと見る（残り${matched-shown.length}件）</button></div>`; }
+    area.innerHTML=t;
+    area.querySelectorAll(".del").forEach(b=>b.onclick=()=>{
+      setHours(b.dataset.id, +b.dataset.m, +b.dataset.d, "");
+      save(); updateRecList();
+    });
+    const more=document.getElementById("recMore");
+    if(more) more.onclick=()=>{ recShown+=REC_STEP; updateRecList(); };
+  }
 
   // 長期休暇 出勤数の登録
   const lNameEl=document.getElementById("lName"), lTermEl=document.getElementById("lTerm"),
@@ -460,20 +536,20 @@ function renderGrid(){
   h+=`<table class="grid"><thead><tr><th class="name-col">名前 \\ 日</th>`;
   for(let d=1;d<=n;d++){ const dw=new Date(y,month-1,d).getDay(); const c=dw===0?"sun":dw===6?"sat":"";
     h+=`<th class="${c}">${d}<br><span class="dow">${DOW[dw]}</span></th>`; }
-  h+=`<th class="total">合計<br><span class="dow">時間</span></th></tr></thead><tbody>`;
+  h+=`<th class="total">合計<br><span class="dow">時:分</span></th></tr></thead><tbody>`;
   for(const s of state.staff){
     h+=`<tr><td class="name-col">${escapeHtml(s.name)}</td>`;
     for(let d=1;d<=n;d++){ const dw=new Date(y,month-1,d).getDay(); const c=dw===0?"sun":dw===6?"sat":"";
       const v=getHours(s.id,month,d);
       h+=`<td class="cell ${c}"><input data-s="${s.id}" data-d="${d}" value="${v!==undefined?escapeAttr(v):""}"></td>`; }
-    h+=`<td class="total" id="mt-${s.id}">${fmtNum(monthTotal(s.id,month))}</td></tr>`;
+    h+=`<td class="total" id="mt-${s.id}">${hhmm(monthTotal(s.id,month))}</td></tr>`;
   }
   h+=`</tbody></table>`;
   panel.innerHTML=h;
   document.getElementById("gMonth").onchange=e=>{ gridMonth=+e.target.value; renderGrid(); };
   panel.querySelectorAll(".grid input").forEach(inp=>{
     inp.addEventListener("change",()=>{ setHours(inp.dataset.s,month,+inp.dataset.d,inp.value);
-      document.getElementById("mt-"+inp.dataset.s).textContent=fmtNum(monthTotal(inp.dataset.s,month)); save(); });
+      document.getElementById("mt-"+inp.dataset.s).textContent=hhmm(monthTotal(inp.dataset.s,month)); save(); });
     inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();inp.blur();inp.dispatchEvent(new Event("change"));} });
   });
 }
@@ -539,6 +615,60 @@ document.getElementById("btnCsv").onclick=()=>{
   const blob=new Blob([csv],{type:"text/csv"}); const a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download=`有給管理_${state.year}年度_集計.csv`; a.click();
 };
+
+/* ---------- ファイル直結保存（File System Access API） ---------- */
+let fileHandle=null, fileWriteTimer=null;
+const FS_SUPPORTED = ("showSaveFilePicker" in window);
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open("yukyuFS",1);
+  r.onupgradeneeded=()=>r.result.createObjectStore("kv"); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbSet(k,v){ const db=await idb(); return new Promise((res,rej)=>{ const t=db.transaction("kv","readwrite");
+  t.objectStore("kv").put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+async function idbGet(k){ const db=await idb(); return new Promise((res,rej)=>{ const t=db.transaction("kv","readonly");
+  const rq=t.objectStore("kv").get(k); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); }); }
+function fileStatus(msg,color){ const el=document.getElementById("fileStatus"); if(el){ el.textContent=msg; el.style.color=color||"#fff"; } }
+function updateFileStatus(){ if(fileHandle) fileStatus("📄 "+fileHandle.name); else fileStatus("📄 ファイル未連携（ブラウザ内のみ保存）","#ffe9a8"); }
+async function ensurePerm(h,mode){ const o={mode}; if((await h.queryPermission(o))==="granted") return true; return (await h.requestPermission(o))==="granted"; }
+async function writeToFile(){ if(!fileHandle) return;
+  try{ if(!(await ensurePerm(fileHandle,"readwrite"))) return;
+    const w=await fileHandle.createWritable(); await w.write(JSON.stringify(state,null,1)); await w.close();
+    fileStatus("📄 "+fileHandle.name+"（"+new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})+" 保存済）","#cdfccf");
+  }catch(e){ fileStatus("⚠ ファイル保存失敗（バックアップ推奨）","#ffd0d0"); } }
+function scheduleFileWrite(){ if(!fileHandle) return; clearTimeout(fileWriteTimer); fileWriteTimer=setTimeout(writeToFile,1000); }
+async function linkAndSave(){
+  if(!FS_SUPPORTED){ document.getElementById("btnExport").click(); return; }
+  try{
+    if(!fileHandle){ fileHandle=await window.showSaveFilePicker({ suggestedName:`有給管理_${state.year}年度.json`,
+        types:[{description:"有給管理データ",accept:{"application/json":[".json"]}}] }); await idbSet("fileHandle",fileHandle); }
+    await writeToFile(); updateFileStatus();
+  }catch(e){ if(e.name!=="AbortError") alert("保存できませんでした: "+e.message); }
+}
+async function openFromFile(){
+  if(!FS_SUPPORTED){ document.getElementById("btnImport").click(); return; }
+  try{
+    const [h]=await window.showOpenFilePicker({ types:[{description:"有給管理データ",accept:{"application/json":[".json"]}}] });
+    if(!(await ensurePerm(h,"readwrite"))){ alert("ファイルへのアクセスが許可されませんでした。"); return; }
+    const f=await h.getFile(); const s=JSON.parse(await f.text());
+    if(!s.staff||!s.year){ alert("形式が正しくありません。"); return; }
+    fileHandle=h; await idbSet("fileHandle",h);
+    state=s; if(!state.maxLeave) state.maxLeave={...DEFAULT_MAX};
+    localStorage.setItem(storageKey(),JSON.stringify(state)); localStorage.setItem("yukyu_last_year",String(state.year));
+    render(); updateFileStatus();
+    alert(`${s.year}年度のデータをファイルから読み込みました。`);
+  }catch(e){ if(e.name!=="AbortError") alert("開けませんでした: "+e.message); }
+}
+document.getElementById("btnSaveFile").onclick=linkAndSave;
+document.getElementById("btnOpenFile").onclick=openFromFile;
+// Ctrl+S でファイルに保存（エクセル感覚）
+document.addEventListener("keydown",e=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){ e.preventDefault(); linkAndSave(); }});
+// 起動時: 前回のファイルを記憶していれば、許可済みなら自動読込
+(async function restoreHandle(){ if(!FS_SUPPORTED){ updateFileStatus(); return; }
+  try{ const h=await idbGet("fileHandle"); if(h){ fileHandle=h;
+    if((await h.queryPermission({mode:"readwrite"}))==="granted"){
+      const f=await h.getFile(); const s=JSON.parse(await f.text());
+      if(s.staff&&s.year){ state=s; if(!state.maxLeave) state.maxLeave={...DEFAULT_MAX};
+        localStorage.setItem(storageKey(),JSON.stringify(state)); render(); } } } }catch(e){}
+  updateFileStatus();
+})();
 
 /* ---------- util ---------- */
 function escapeHtml(s){ return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
